@@ -1,16 +1,31 @@
 ﻿using System.Collections.Generic;
 using System.Linq;
-using UnityEditor.Experimental.GraphView;
 using UnityEngine;
+
+public class RectPackingResult
+{
+    public List<PackingRect> Atlas;
+    public Material[] UnfittedMaterials;
+
+    public RectPackingResult((List<PackingRect>, Material[]) results)
+    {
+        (Atlas, UnfittedMaterials) = results;
+    }
+}
 
 public class PackingResult
 {
-    public List<PackingRect> atlas;
-    public Material[] unfittedMaterials;
+    public Shader Shader;
+    public int[] Triangles;
+    public Dictionary<string, Texture2D> AtlasTextures;
+    public Material[] UnfittedMaterials;
 
-    public PackingResult((List<PackingRect>, Material[]) results)
+    public PackingResult(Shader shader, int[] triangles, Dictionary<string, Texture2D> atlasTextures, Material[] unfittedMaterials)
     {
-        (atlas, unfittedMaterials) = results;
+        Shader = shader;
+        Triangles = triangles;
+        AtlasTextures = atlasTextures;
+        UnfittedMaterials = unfittedMaterials;
     }
 }
 
@@ -42,31 +57,56 @@ public class ShaderGroup
         return true;
     }
 
-    public List<Material> Pack(Vector3[] verts, Vector2[] uvs, Vector2Int resolution)
+    public PackingResult Pack(Vector2[] uvs, Vector2Int resolution)
     {
         Dictionary<Material, Vector2Int> materialDimensions = PackingMaterials.ToDictionary(
             kv => { return kv.Key; },
             kv => { return kv.Value.CalculateCanonicalSize(); }
             );
 
-        PackingResult packingResults = PackCanonical(materialDimensions, resolution);
+        RectPackingResult packingResults = PackCanonical(materialDimensions, resolution);
+        Dictionary<string, RenderTexture> PackingAtlases = new Dictionary<string, RenderTexture>();
+        Dictionary<string, Vector2> slotCoefficients = GetSlotCoefficients();
 
-        // First, we apply our packed atlas to the specified UV triangles.
-        foreach (PackingRect rect in packingResults.atlas)
+        foreach (PackingRect rect in packingResults.Atlas)
         {
+            MaterialInfo currentMat = PackingMaterials[rect.PackingMaterial];
+
+            // First, we apply our packed atlas to the specified UV triangles.
             Rect uvRect = rect.NormalizedRect(resolution);
 
-            foreach (int index in PackingMaterials[rect.PackingMaterial].Triangles)
+            // TODO: FIX VERTEX DOUBLING!
+            foreach (int index in currentMat.Triangles)
             {
                 Vector2 targetUV = uvs[index];
 
-                uvs[index] = new Vector2(targetUV.x * uvRect.width + uvRect.x, targetUV.y * uvRect.height + uvRect.y);
+                uvs[index] = new Vector2(targetUV.x * uvRect.width + uvRect.x,
+                    targetUV.y * uvRect.height + uvRect.y);
+            }
+
+            // Now, we add our images to the atlas.
+            foreach (TextureInfo texInfo in currentMat.Textures)
+            {
+                Vector2 coefficient = slotCoefficients[texInfo.TexSlot];
+
+                if (!PackingAtlases.ContainsKey(texInfo.TexSlot))
+                    PackingAtlases.Add(texInfo.TexSlot, 
+                        TextureUtils.GenEmptyAtlasTexture(Vector2Int.FloorToInt(resolution * coefficient)));
+
+                RenderTexture targetAtlas = PackingAtlases[texInfo.TexSlot];
+                Texture2D processedTexture = Archetype.ProcessTexture(texInfo.TexMaterial,
+                    texInfo.TexSlot, texInfo.Texture,
+                    Vector2Int.FloorToInt(materialDimensions[texInfo.TexMaterial] * coefficient));
+
+                RenderTexture prev = RenderTexture.active;
+                Graphics.Blit(processedTexture, targetAtlas, coefficient, uvRect.position);
+                RenderTexture.active = prev;
             }
         }
     }
 
     // WARNING: DESTRUCTIVE OPERATION!
-    private PackingResult PackCanonical(Dictionary<Material, Vector2Int> materialDimensions, Vector2Int resolution)
+    private RectPackingResult PackCanonical(Dictionary<Material, Vector2Int> materialDimensions, Vector2Int resolution)
     {
         PackingAtlas atlas = new PackingAtlas();
 
@@ -77,17 +117,17 @@ public class ShaderGroup
                 )));
         }
 
-        PackingResult results = new PackingResult(atlas.Pack(resolution));
-        foreach (Material mat in results.unfittedMaterials)
+        RectPackingResult results = new RectPackingResult(atlas.Pack(resolution));
+        foreach (Material mat in results.UnfittedMaterials)
             PackingMaterials.Remove(mat);
 
         return results;
     }
 
-    private Dictionary<string, Vector2Int> GetSlotCoefficients()
+    private Dictionary<string, Vector2> GetSlotCoefficients()
     {
         Vector2Int largestCanonicalRes = PackingMaterials.Values.Select(x => x.CalculateCanonicalSize()).OrderBy(x => x.sqrMagnitude).FirstOrDefault();
-        Dictionary<string, Vector2Int> res = new Dictionary<string, Vector2Int>();
+        Dictionary<string, Vector2> res = new Dictionary<string, Vector2>();
 
         Dictionary<string, List<Texture2D>> packingTextures = new Dictionary<string, List<Texture2D>>();
 
@@ -113,7 +153,7 @@ public class ShaderGroup
                 maxRes = (texDimensions.sqrMagnitude > maxRes.sqrMagnitude) ? texDimensions : maxRes;
             }
 
-            res.Add(entry.Key, new Vector2Int(maxRes.x / largestCanonicalRes.x, maxRes.y / largestCanonicalRes.y));
+            res.Add(entry.Key, new Vector2(maxRes.x / (float) largestCanonicalRes.x, maxRes.y / (float) largestCanonicalRes.y));
         }
 
         return res;

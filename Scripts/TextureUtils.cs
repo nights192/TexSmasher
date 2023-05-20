@@ -13,4 +13,16 @@ public static class TextureUtils
 
         return result;
     }
+
+    public static RenderTexture GenEmptyAtlasTexture(Vector2Int resolution)
+    {
+        RenderTexture previousActiveTarget = RenderTexture.active;
+
+        RenderTexture res = new RenderTexture(resolution.x, resolution.y, 24, RenderTextureFormat.ARGB32);
+        RenderTexture.active = res;
+        GL.Clear(true, true, new Color(0.0f, 0.0f, 0.0f, 0.0f));
+        RenderTexture.active = previousActiveTarget;
+
+        return res;
+    }
 }

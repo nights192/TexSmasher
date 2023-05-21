@@ -18,7 +18,7 @@ public static class TextureUtils
     {
         RenderTexture previousActiveTarget = RenderTexture.active;
 
-        RenderTexture res = new RenderTexture(resolution.x, resolution.y, 24, RenderTextureFormat.ARGB32);
+        RenderTexture res = new RenderTexture(resolution.x, resolution.y, 32, RenderTextureFormat.ARGB32);
         RenderTexture.active = res;
         GL.Clear(true, true, new Color(0.0f, 0.0f, 0.0f, 0.0f));
         RenderTexture.active = previousActiveTarget;

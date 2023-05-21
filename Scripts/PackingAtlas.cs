@@ -37,55 +37,6 @@ public class PackingRect
     }
 }
 
-public class MaterialInfo
-{
-    public List<TextureInfo> Textures;
-    public int[] Triangles;
-
-    public static Vector2 CalculateUVSize(Vector2Int canonicalSize, Vector2Int maxRes)
-    {
-        return new Vector2(canonicalSize.x / maxRes.x, canonicalSize.y / maxRes.y);
-    }
-
-    public MaterialInfo(int[] tris)
-    {
-        Textures = new List<TextureInfo>();
-        Triangles = tris;
-    }
-
-    public void AddTexture(TextureInfo texture)
-    {
-        Textures.Add(texture);
-    }
-
-    public Vector2Int CalculateCanonicalSize()
-    {
-        Vector2Int res = new Vector2Int();
-
-        foreach (TextureInfo texture in Textures)
-        {
-            res.x = (texture.Texture.width > res.x) ? texture.Texture.width : res.x;
-            res.y = (texture.Texture.height > res.y) ? texture.Texture.height : res.y;
-        }
-
-        return res;
-    }
-}
-
-public class TextureInfo
-{
-    public Material TexMaterial;
-    public string TexSlot;
-    public Texture2D Texture;
-
-    public TextureInfo(Material mat, string slot, Texture2D tex)
-    {
-        TexMaterial = mat;
-        TexSlot = slot;
-        Texture = tex;
-    }
-}
-
 public class PackingAtlas
 {
     private const int _skipDist = 8;

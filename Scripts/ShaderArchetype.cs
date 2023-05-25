@@ -68,7 +68,7 @@ public class ShaderArchetype
 
             if (tex == null)
             {
-                tex = TextureUtils.GenSolidTexture(canonicalSize.x, canonicalSize.y, intensity);
+                tex = initializer(mat, canonicalSize);
                 runMixer &= executeWithInitializer;
             }
 
